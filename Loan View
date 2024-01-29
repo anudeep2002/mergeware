@@ -1,0 +1,406 @@
+//User (lender whenever he joins and can pick a role) and confirms to pay the loan and see
+the existing past payments
+import { Meteor } from 'meteor/meteor';
+import { Template } from 'meteor/templating';
+import { ReactiveVar } from 'meteor/reactive-var';
+
+import './main.html';
+
+// Collection to store user roles
+const Roles = new Mongo.Collection('roles');
+// Collection to store loan requests
+const Loans = new Mongo.Collection('loans');
+// Collection to store loan payments
+const Payments = new Mongo.Collection('payments');
+
+Template.register.events({
+  'submit form': function (event, template) {
+    event.preventDefault();
+
+    const email = event.target.email.value;
+    const role = event.target.role.value;
+
+    if (email && role) {
+      // Check if the email is already registered
+      const existingUser = Meteor.users.findOne({ 'emails.address': email });
+
+      if (!existingUser) {
+        // Create a new user
+        const userId = Accounts.createUser({ email, password: 'defaultPassword' });
+
+        // Set the user's role
+        Roles.insert({ userId, role });
+
+        template.message.set(`Registration successful! Thank you, ${email}.`);
+        template.error.set(null);
+        event.target.email.value = '';
+        event.target.role.value = '';
+      } else {
+        template.error.set('Email already registered!');
+      }
+    } else {
+      template.error.set('Please provide a valid email address and select a role.');
+    }
+  },
+});
+
+Template.borrowerDashboard.events({
+  'submit form': function (event, template) {
+    event.preventDefault();
+
+    const loanAmount = parseFloat(event.target.loanAmount.value);
+    const userId = Meteor.userId();
+
+    if (!isNaN(loanAmount) && loanAmount > 0) {
+      Loans.insert({ userId, loanAmount, status: 'Pending' });
+      template.message.set('Loan request submitted successfully!');
+      template.error.set(null);
+      event.target.loanAmount.value = '';
+    } else {
+      template.error.set('Please provide a valid loan amount.');
+    }
+  },
+});
+
+Template.borrowerDashboard.helpers({
+  errorMessage: function () {
+    return Template.instance().error.get();
+  },
+  successMessage: function () {
+    return Template.instance().message.get();
+  },
+  loanRequests: function () {
+    const userId = Meteor.userId();
+    return Loans.find({ userId });
+  },
+});
+
+Template.borrowerDashboard.onCreated(function () {
+  this.error = new ReactiveVar(null);
+  this.message = new ReactiveVar(null);
+});
+
+Template.lenderDashboard.events({
+  'submit form': function (event, template) {
+    event.preventDefault();
+
+    const loanId = event.target.loanId.value;
+    const paymentAmount = parseFloat(event.target.paymentAmount.value);
+
+    if (loanId && !isNaN(paymentAmount) && paymentAmount > 0) {
+      Loans.update({ _id: loanId }, { $set: { status: 'Paid' } });
+      Payments.insert({ loanId, paymentAmount });
+      template.message.set('Payment confirmed successfully!');
+      template.error.set(null);
+      event.target.loanId.value = '';
+      event.target.paymentAmount.value = '';
+    } else {
+      template.error.set('Please provide a valid loan ID and payment amount.');
+    }
+  },
+});
+
+Template.lenderDashboard.helpers({
+  errorMessage: function () {
+    return Template.instance().error.get();
+  },
+  successMessage: function () {
+    return Template.instance().message.get();
+  },
+  pendingLoans: function () {
+    return Loans.find({ status: 'Pending' });
+  },
+  payments: function () {
+    return Payments.find();
+  },
+});
+
+Template.lenderDashboard.onCreated(function () {
+  this.error = new ReactiveVar(null);
+  this.message = new ReactiveVar(null);
+});
+
+//main.html
+<head>
+  <title>User Registration</title>
+</head>
+
+<body>
+  <h2>User Registration</h2>
+
+  {{#if errorMessage}}
+    <p style="color: red;">{{errorMessage}}</p>
+  {{/if}}
+
+  {{#if successMessage}}
+    <p style="color: green;">{{successMessage}}</p>
+  {{/if}}
+
+  {{#if currentUser}}
+    {{#if isBorrower}}
+      {{> borrowerDashboard}}
+    {{else}}
+      {{> lenderDashboard}}
+    {{/if}}
+  {{else}}
+    <form id="registerForm">
+      <label for="email">Email:</label>
+      <input type="email" name="email" required>
+
+      <label for="role">Role:</label>
+      <select name="role" required>
+        <option value="" disabled selected>Select a role</option>
+        <option value="admin">Admin</option>
+        <option value="borrower">Borrower</option>
+        <option value="lender">Lender</option>
+      </select>
+
+      <button type="submit">Register</button>
+    </form>
+  {{/if}}
+</body>
+
+<template name="register">
+  {{> register}}
+</template>
+
+<template name="borrowerDashboard">
+  <h3>Borrower Dashboard</h3>
+
+  {{#if errorMessage}}
+    <p style="color: red;">{{errorMessage}}</p>
+  {{/if}}
+
+  {{#if successMessage}}
+    <p style="color: green;">{{successMessage}}</p>
+  {{/if}}
+
+  <form id="loanRequestForm">
+    <label for="loanAmount">Loan Amount:</label>
+    <input type="number" name="loanAmount" step="0.01" required>
+    <button type="submit">Request Loan</button>
+  </form>
+
+  <h4>Loan Requests</h4>
+  <ul>
+    {{#each loan in loanRequests}}
+      <li>{{loan.loanAmount}} - {{loan.status}}</li>
+    {{/each}}
+  </ul>
+</template>
+
+<template name="lenderDashboard">
+  <h3>Lender Dashboard</h3>
+
+  {{#if errorMessage}}
+    <p style="color: red;">{{errorMessage}}</p>
+  {{/if}}
+
+  {{#if successMessage}}
+    <p style="color: green;">{{successMessage}}</p>
+  {{/if}}
+
+  <form id="paymentConfirmationForm">
+    <label for="loanId">Loan ID:</label>
+    <input type="text" name="loanId" required>
+
+    <label for="paymentAmount">Payment Amount:</label>
+    <input type="number" name="paymentAmount" step="0.01" required>
+    <button type="submit">Confirm Payment</button>
+  </form>
+
+  <h4>Pending Loans</h4>
+  <ul>
+    {{#each loan in pendingLoans}}
+      <li>{{loan._id}} - {{loan.loanAmount}}</li>
+    {{/each}}
+  </ul>
+
+  <h4>Payments</h4>
+  <ul>
+    {{#each payment in payments}}
+      <li>{{payment.loanId}} - {{payment.paymentAmount}}</li>
+    {{/each}}
+  </ul>
+</template>
+
+//The change of status is reflected on each user's dashboard.
+
+import { Meteor } from 'meteor/meteor';
+import { Template } from 'meteor/templating';
+import { ReactiveVar } from 'meteor/reactive-var';
+
+import './main.html';
+
+// Collection to store user roles
+const Roles = new Mongo.Collection('roles');
+// Collection to store loan requests
+const Loans = new Mongo.Collection('loans');
+// Collection to store loan payments
+const Payments = new Mongo.Collection('payments');
+
+// Publish and subscribe to the loan requests based on user role
+Meteor.publish('userLoans', function () {
+  const userId = this.userId;
+  const userRole = Roles.findOne({ userId })?.role;
+
+  if (userRole === 'borrower' || userRole === 'lender') {
+    return Loans.find({ userId });
+  } else {
+    return this.ready();
+  }
+});
+
+// Publish and subscribe to pending loans for lenders
+Meteor.publish('pendingLoans', function () {
+  const userRole = Roles.findOne({ userId: this.userId })?.role;
+
+  if (userRole === 'lender') {
+    return Loans.find({ status: 'Pending' });
+  } else {
+    return this.ready();
+  }
+});
+
+// Publish and subscribe to payments
+Meteor.publish('payments', function () {
+  const userId = this.userId;
+  const userRole = Roles.findOne({ userId })?.role;
+
+  if (userRole === 'lender') {
+    return Payments.find();
+  } else {
+    return this.ready();
+  }
+});
+
+// Subscribe to publications on client side
+Meteor.subscribe('userLoans');
+Meteor.subscribe('pendingLoans');
+Meteor.subscribe('payments');
+
+Template.register.events({
+  'submit form': function (event, template) {
+    // ... (unchanged)
+  },
+});
+
+Template.borrowerDashboard.events({
+  'submit form': function (event, template) {
+    // ... (unchanged)
+  },
+});
+
+Template.borrowerDashboard.helpers({
+  errorMessage: function () {
+    // ... (unchanged)
+  },
+  successMessage: function () {
+    // ... (unchanged)
+  },
+  loanRequests: function () {
+    // Replaced with the dynamic data source based on subscription
+    return Loans.find();
+  },
+});
+
+Template.borrowerDashboard.onCreated(function () {
+  // ... (unchanged)
+
+  // Subscribe to the 'userLoans' publication
+  this.subscribe('userLoans');
+});
+
+Template.lenderDashboard.events({
+  'submit form': function (event, template) {
+    // ... (unchanged)
+  },
+});
+
+Template.lenderDashboard.helpers({
+  errorMessage: function () {
+    // ... (unchanged)
+  },
+  successMessage: function () {
+    // ... (unchanged)
+  },
+  pendingLoans: function () {
+    // Replaced with the dynamic data source based on subscription
+    return Loans.find({ status: 'Pending' });
+  },
+  payments: function () {
+    // Replaced with the dynamic data source based on subscription
+    return Payments.find();
+  },
+});
+
+Template.lenderDashboard.onCreated(function () {
+  // ... (unchanged)
+
+  // Subscribe to the 'pendingLoans' and 'payments' publications
+  this.subscribe('pendingLoans');
+  this.subscribe('payments');
+});
+
+//main1.html
+<!-- ... (unchanged) -->
+
+<template name="borrowerDashboard">
+  <h3>Borrower Dashboard</h3>
+
+  {{#if errorMessage}}
+    <p style="color: red;">{{errorMessage}}</p>
+  {{/if}}
+
+  {{#if successMessage}}
+    <p style="color: green;">{{successMessage}}</p>
+  {{/if}}
+
+  <form id="loanRequestForm">
+    <label for="loanAmount">Loan Amount:</label>
+    <input type="number" name="loanAmount" step="0.01" required>
+    <button type="submit">Request Loan</button>
+  </form>
+
+  <h4>Loan Requests</h4>
+  <ul>
+    {{#each loan in loanRequests}}
+      <li>{{loan.loanAmount}} - {{loan.status}}</li>
+    {{/each}}
+  </ul>
+</template>
+
+<template name="lenderDashboard">
+  <h3>Lender Dashboard</h3>
+
+  {{#if errorMessage}}
+    <p style="color: red;">{{errorMessage}}</p>
+  {{/if}}
+
+  {{#if successMessage}}
+    <p style="color: green;">{{successMessage}}</p>
+  {{/if}}
+
+  <form id="paymentConfirmationForm">
+    <label for="loanId">Loan ID:</label>
+    <input type="text" name="loanId" required>
+
+    <label for="paymentAmount">Payment Amount:</label>
+    <input type="number" name="paymentAmount" step="0.01" required>
+    <button type="submit">Confirm Payment</button>
+  </form>
+
+  <h4>Pending Loans</h4>
+  <ul>
+    {{#each loan in pendingLoans}}
+      <li>{{loan._id}} - {{loan.loanAmount}}</li>
+    {{/each}}
+  </ul>
+
+  <h4>Payments</h4>
+  <ul>
+    {{#each payment in payments}}
+      <li>{{payment.loanId}} - {{payment.paymentAmount}}</li>
+    {{/each}}
+  </ul>
+</template>
