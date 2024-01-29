@@ -1,0 +1,64 @@
+<head>
+    <title>User Registration</title>
+  </head>
+  
+  <body>
+    <h2>User Registration</h2>
+  
+    {{#if errorMessage}}
+      <p style="color: red;">{{errorMessage}}</p>
+    {{/if}}
+  
+    {{#if successMessage}}
+      <p style="color: green;">{{successMessage}}</p>
+    {{/if}}
+  
+    {{#if currentUser}}
+      {{> borrowerDashboard}}
+    {{else}}
+      <form id="registerForm">
+        <label for="email">Email:</label>
+        <input type="email" name="email" required>
+  
+        <label for="role">Role:</label>
+        <select name="role" required>
+          <option value="" disabled selected>Select a role</option>
+          <option value="admin">Admin</option>
+          <option value="borrower">Borrower</option>
+          <option value="lender">Lender</option>
+        </select>
+  
+        <button type="submit">Register</button>
+      </form>
+    {{/if}}
+  </body>
+  
+  <template name="register">
+    {{> register}}
+  </template>
+  
+  <template name="borrowerDashboard">
+    <h3>Borrower Dashboard</h3>
+  
+    {{#if errorMessage}}
+      <p style="color: red;">{{errorMessage}}</p>
+    {{/if}}
+  
+    {{#if successMessage}}
+      <p style="color: green;">{{successMessage}}</p>
+    {{/if}}
+  
+    <form id="loanRequestForm">
+      <label for="loanAmount">Loan Amount:</label>
+      <input type="number" name="loanAmount" step="0.01" required>
+      <button type="submit">Request Loan</button>
+    </form>
+  
+    <h4>Loan Requests</h4>
+    <ul>
+      {{#each loan in loanRequests}}
+        <li>{{loan.loanAmount}} - {{loan.status}}</li>
+      {{/each}}
+    </ul>
+  </template>
+  

@@ -1,0 +1,76 @@
+import { Meteor } from 'meteor/meteor';
+import { Template } from 'meteor/templating';
+import { ReactiveVar } from 'meteor/reactive-var';
+
+import './main.html';
+
+// Collection to store loan requests
+const Loans = new Mongo.Collection('loans');
+
+Template.register.events({
+  'submit form': function (event, template) {
+    event.preventDefault();
+
+    const email = event.target.email.value;
+    const role = event.target.role.value;
+
+    if (email && role) {
+      // Check if the email is already registered
+      const existingUser = Meteor.users.findOne({ 'emails.address': email });
+
+      if (!existingUser) {
+        // Create a new user
+        const userId = Accounts.createUser({ email, password: 'defaultPassword' });
+
+        // Set the user's role
+        Roles.insert({ userId, role });
+
+        template.message.set(`Registration successful! Thank you, ${email}.`);
+        template.error.set(null);
+        event.target.email.value = '';
+        event.target.role.value = '';
+      } else {
+        template.error.set('Email already registered!');
+      }
+    } else {
+      template.error.set('Please provide a valid email address and select a role.');
+    }
+  },
+});
+
+Template.borrowerDashboard.events({
+  'submit form': function (event, template) {
+    event.preventDefault();
+
+    const loanAmount = parseFloat(event.target.loanAmount.value);
+    const userId = Meteor.userId();
+
+    if (!isNaN(loanAmount) && loanAmount > 0) {
+      Loans.insert({ userId, loanAmount, status: 'Pending' });
+      template.message.set('Loan request submitted successfully!');
+      template.error.set(null);
+      event.target.loanAmount.value = '';
+    } else {
+      template.error.set('Please provide a valid loan amount.');
+    }
+  },
+});
+
+Template.borrowerDashboard.helpers({
+  errorMessage: function () {
+    return Template.instance().error.get();
+  },
+  successMessage: function () {
+    return Template.instance().message.get();
+  },
+  loanRequests: function () {
+    const userId = Meteor.userId();
+    return Loans.find({ userId });
+  },
+});
+
+Template.borrowerDashboard.onCreated(function () {
+  this.error = new ReactiveVar(null);
+  this.message = new ReactiveVar(null);
+});
+

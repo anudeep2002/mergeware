@@ -1,0 +1,35 @@
+<head>
+    <title>User Registration</title>
+  </head>
+  
+  <body>
+    <h2>User Registration</h2>
+  
+    {{#if errorMessage}}
+      <p style="color: red;">{{errorMessage}}</p>
+    {{/if}}
+  
+    {{#if successMessage}}
+      <p style="color: green;">{{successMessage}}</p>
+    {{/if}}
+  
+    <form id="registerForm">
+      <label for="email">Email:</label>
+      <input type="email" name="email" required>
+  
+      <label for="role">Role:</label>
+      <select name="role" required>
+        <option value="" disabled selected>Select a role</option>
+        <option value="admin">Admin</option>
+        <option value="borrower">Borrower</option>
+        <option value="lender">Lender</option>
+      </select>
+  
+      <button type="submit">Register</button>
+    </form>
+  </body>
+  
+  <template name="register">
+    {{> register}}
+  </template>
+  
